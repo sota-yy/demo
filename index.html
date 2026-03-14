@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>おみくじ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #0d0a12;
+      --red:    #e05060;
+      --gold:   #c9a84c;
+      --gold2:  #f0cc78;
+      --cream:  #fdf6e3;
+      --ink:    #2c1810;
+      --wood:   #7a4828;
+      --glass:  rgba(255,255,255,.06);
+      --border: rgba(255,255,255,.10);
+    }
+
+    /* ── ベース ── */
+    html, body { height: 100%; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Noto Serif JP', serif;
+      background-color: var(--bg);
+      overflow: hidden; /* 花びらが画面外にはみ出さないよう */
+      position: relative;
+      color: white;
+    }
+
+    /* ── 背景：放射グラデ + 麻の葉文様 ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%,   rgba(180, 40, 60,.18) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 20% 100%, rgba(100, 20,120,.15) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 80%,  rgba( 20, 60,160,.12) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        repeating-linear-gradient(30deg,  rgba(201,168,76,.055) 0, rgba(201,168,76,.055) 1px, transparent 1px, transparent 50%),
+        repeating-linear-gradient(150deg, rgba(201,168,76,.055) 0, rgba(201,168,76,.055) 1px, transparent 1px, transparent 50%),
+        repeating-linear-gradient(90deg,  rgba(201,168,76,.055) 0, rgba(201,168,76,.055) 1px, transparent 1px, transparent 50%);
+      background-size: 28px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── 桜の花びら ── */
+    .petal {
+      position: fixed;
+      top: -30px;
+      border-radius: 80% 0 80% 0;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      0%   { opacity: .75; transform: translateY(0)      rotate(0deg)   translateX(0); }
+      50%  { transform: translateY(50vh) rotate(270deg) translateX(20px); }
+      100% { opacity: 0;  transform: translateY(108vh)  rotate(540deg) translateX(-10px); }
+    }
+
+    /* ── タイトル ── */
+    header {
+      position: relative; z-index: 2;
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .title-kana {
+      font-size: .72rem;
+      font-weight: 300;
+      letter-spacing: .8em;
+      color: var(--gold);
+      opacity: .7;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .title-main {
+      font-size: 3rem;
+      font-weight: 900;
+      letter-spacing: .25em;
+      background: linear-gradient(135deg, var(--gold2) 0%, var(--gold) 50%, #a07828 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 24px rgba(201,168,76,.35));
+      line-height: 1;
+    }
+    .title-rule {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      margin-top: 10px;
+    }
+    .title-rule span {
+      display: block;
+      width: 80px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold));
+    }
+    .title-rule span:last-child { background: linear-gradient(90deg, var(--gold), transparent); }
+    .title-rule i {
+      width: 5px; height: 5px;
+      background: var(--gold);
+      transform: rotate(45deg);
+      opacity: .7;
+    }
+
+    /* ── おみくじ箱 ── */
+    .shrine-wrap {
+      position: relative; z-index: 2;
+      display: flex; flex-direction: column; align-items: center;
+    }
+
+    .box-btn {
+      background: none; border: none; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center;
+      outline: none;
+      transition: transform .2s ease;
+    }
+    .box-btn:hover  { transform: translateY(-6px); }
+    .box-btn:active { transform: translateY(2px) scale(.97); }
+    .box-btn:focus-visible .omikuji-box { outline: 2px solid var(--gold); outline-offset: 4px; }
+
+    /* 屋根 */
+    .roof-wrap {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center;
+      filter: drop-shadow(0 -4px 16px rgba(224,80,96,.4));
+      width: 152px; /* 箱と同幅で中央揃えの基準を統一 */
+    }
+    .roof {
+      width: 0;
+      /* 左右 76px ずつ = 152px で箱幅にぴったり合わせる */
+      border-left:  76px solid transparent;
+      border-right: 76px solid transparent;
+      border-bottom: 40px solid #c0384a;
+      position: relative; z-index: 2;
+    }
+    .roof-bar {
+      width: 164px; /* 屋根より少し広くしてひさしを表現 */
+      height: 9px;
+      background: linear-gradient(to bottom, #e05060, #a02838);
+      border-radius: 0 0 3px 3px;
+      position: relative; z-index: 2;
+    }
+    .roof-tip {
+      position: absolute;
+      top: -14px; left: 50%;
+      transform: translateX(-50%);
+      width: 8px; height: 16px;
+      background: linear-gradient(to bottom, var(--gold2), var(--gold));
+      border-radius: 3px 3px 0 0;
+      box-shadow: 0 0 10px rgba(201,168,76,.6);
+    }
+
+    /* 箱本体 */
+    .omikuji-box {
+      width: 152px;
+      background: linear-gradient(160deg, #b86838 0%, #8b4a22 55%, #5a2e10 100%);
+      border-radius: 3px 3px 10px 10px;
+      padding: 16px 0 22px;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      box-shadow:
+        0 20px 60px rgba(0,0,0,.6),
+        0 8px 20px rgba(0,0,0,.4),
+        inset 0 1px 0 rgba(255,255,255,.15),
+        inset -4px 0 12px rgba(0,0,0,.2);
+      transition: box-shadow .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    /* 木目の光沢 */
+    .omikuji-box::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(105deg, rgba(255,255,255,.08) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .box-btn:hover .omikuji-box {
+      box-shadow: 0 28px 70px rgba(0,0,0,.7), 0 12px 28px rgba(0,0,0,.5),
+                  inset 0 1px 0 rgba(255,255,255,.15), inset -4px 0 12px rgba(0,0,0,.2);
+    }
+
+    .box-slot {
+      width: 86px; height: 10px;
+      background: #150800;
+      border-radius: 4px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.05);
+    }
+    .box-line {
+      width: 120px; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(240,204,120,.35), transparent);
+    }
+    .box-kanji {
+      font-size: 1.45rem;
+      font-weight: 900;
+      letter-spacing: .18em;
+      background: linear-gradient(to bottom, var(--gold2), var(--gold));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 1px 3px rgba(0,0,0,.6));
+    }
+
+    /* 台座 */
+    .pedestal {
+      width: 186px; height: 14px;
+      background: linear-gradient(to bottom, #4a2010, #200800);
+      border-radius: 3px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    }
+
+    /* シェイク */
+    @keyframes shake {
+      0%,100% { transform: translateX(0) rotate(0deg); }
+      12%      { transform: translateX(-8px) rotate(-4deg); }
+      25%      { transform: translateX(8px) rotate(4deg); }
+      37%      { transform: translateX(-6px) rotate(-2.5deg); }
+      50%      { transform: translateX(6px) rotate(2.5deg); }
+      62%      { transform: translateX(-4px) rotate(-1.5deg); }
+      75%      { transform: translateX(4px) rotate(1.5deg); }
+      87%      { transform: translateX(-2px) rotate(-.5deg); }
+    }
+    .box-btn.shaking { animation: shake .65s ease; }
+    .box-btn.shaking:hover { transform: none; }
+
+    /* ヒント */
+    .hint {
+      margin-top: 22px;
+      font-size: .72rem;
+      font-weight: 300;
+      letter-spacing: .35em;
+      color: rgba(201,168,76,.55);
+      transition: opacity .4s;
+    }
+
+    /* ── 結果オーバーレイ ── */
+    .scroll-overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .45s;
+      padding: 20px;
+    }
+    /* 背景ブラー */
+    .overlay-bg {
+      position: absolute; inset: 0;
+      background: rgba(8, 4, 16, .72);
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    }
+    .scroll-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* スクロール本体 */
+    .scroll-paper {
+      position: relative; z-index: 1;
+      width: min(380px, 100%);
+      display: flex; flex-direction: column; align-items: center;
+      transform: scale(.88) translateY(20px);
+      transition: transform .5s cubic-bezier(.34,1.56,.64,1);
+    }
+    .scroll-overlay.visible .scroll-paper {
+      transform: scale(1) translateY(0);
+    }
+
+    /* 巻物の端 */
+    .scroll-rod {
+      width: 100%; height: 24px;
+      background: linear-gradient(to bottom,
+        rgba(240,204,120,.9) 0%, rgba(160,120,32,1) 40%,
+        rgba(200,164,72,.9) 60%, rgba(140,104,20,1) 100%);
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.3);
+      position: relative; z-index: 1;
+    }
+    .scroll-rod::before {
+      content: '';
+      position: absolute;
+      left: 8px; right: 8px; top: 6px; height: 4px;
+      background: rgba(255,255,255,.15);
+      border-radius: 2px;
+    }
+
+    /* 紙部分 */
+    .scroll-body {
+      width: calc(100% - 12px);
+      /* グラスモーフィズム + 和紙テクスチャ */
+      background:
+        repeating-linear-gradient(90deg, transparent 0, transparent 31px, rgba(139,105,20,.04) 31px, rgba(139,105,20,.04) 32px),
+        linear-gradient(170deg, rgba(253,249,238,.97) 0%, rgba(248,236,200,.98) 60%, rgba(253,245,220,.97) 100%);
+      padding: 28px 28px 32px;
+      text-align: center;
+      box-shadow:
+        0 0 0 1px rgba(180,140,60,.25),
+        0 20px 60px rgba(0,0,0,.5),
+        inset 0 1px 0 rgba(255,255,255,.6);
+      position: relative;
+      overflow: hidden;
+    }
+    /* 右上の薄い家紋風装飾 */
+    .scroll-body::after {
+      content: '';
+      position: absolute;
+      right: 16px; top: 16px;
+      width: 44px; height: 44px;
+      border: 1.5px solid rgba(180,120,40,.15);
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 6px rgba(180,120,40,.07), 0 0 0 2px rgba(180,120,40,.05);
+    }
+
+    /* 朱印 */
+    .stamp {
+      width: 56px; height: 56px;
+      border: 2.5px solid rgba(192,56,72,.6);
+      border-radius: 50%;
+      color: rgba(192,56,72,.65);
+      font-size: .54rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      line-height: 1.5;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center;
+      margin: 0 auto 10px;
+      transform: rotate(-12deg);
+      box-shadow: inset 0 0 0 1px rgba(192,56,72,.15);
+    }
+
+    .scroll-number {
+      font-size: .7rem;
+      font-weight: 300;
+      letter-spacing: .35em;
+      color: rgba(44,24,16,.4);
+      margin-bottom: 8px;
+    }
+
+    /* 結果文字 */
+    .result-text {
+      font-size: 4.5rem;
+      font-weight: 900;
+      letter-spacing: .06em;
+      line-height: 1;
+      margin-bottom: 2px;
+      opacity: 0;
+      transform: scale(.3);
+      transition: opacity .4s .2s, transform .5s .2s cubic-bezier(.34,1.56,.64,1);
+    }
+    .scroll-overlay.visible .result-text { opacity: 1; transform: scale(1); }
+
+    .result-text.daikichi { color: #c0283a; text-shadow: 0 2px 20px rgba(192,40,58,.5); }
+    .result-text.chukichi { color: #c86020; }
+    .result-text.shokichi { color: #a87c10; }
+    .result-text.kichi    { color: #1a7040; }
+    .result-text.suekichi { color: #1a50a0; }
+    .result-text.kyo      { color: #606060; }
+    .result-text.daikyo   { color: #383838; }
+
+    /* ルビ */
+    .result-ruby {
+      font-size: .65rem;
+      font-weight: 300;
+      letter-spacing: .55em;
+      color: rgba(44,24,16,.45);
+      margin-bottom: 16px;
+      opacity: 0;
+      transition: opacity .4s .42s;
+    }
+    .scroll-overlay.visible .result-ruby { opacity: 1; }
+
+    /* 区切り線 */
+    .divider {
+      display: flex; align-items: center; gap: 10px;
+      margin: 2px 0 14px;
+    }
+    .divider span {
+      flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(160,120,30,.35), transparent);
+    }
+    .divider i {
+      width: 4px; height: 4px;
+      background: rgba(160,120,30,.4);
+      transform: rotate(45deg);
+    }
+
+    /* 運勢メッセージ */
+    .result-msg {
+      font-size: .88rem;
+      font-weight: 400;
+      line-height: 2.1;
+      color: #2c1810;
+      text-align: left;
+      white-space: pre-line;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .4s .5s, transform .4s .5s;
+    }
+    .scroll-overlay.visible .result-msg { opacity: 1; transform: translateY(0); }
+
+    /* カテゴリ */
+    .result-cats {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      text-align: left;
+      opacity: 0;
+      transition: opacity .4s .65s;
+    }
+    .scroll-overlay.visible .result-cats { opacity: 1; }
+    .cat-item {
+      font-size: .74rem;
+      color: #2c1810;
+      line-height: 1.7;
+      padding: 6px 8px;
+      background: rgba(180,140,60,.07);
+      border-radius: 4px;
+      border: 1px solid rgba(180,140,60,.12);
+    }
+    .cat-label {
+      font-size: .56rem;
+      font-weight: 700;
+      letter-spacing: .2em;
+      color: #b03040;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* もう一度ボタン */
+    .retry-btn {
+      margin-top: 20px;
+      padding: 11px 36px;
+      background: linear-gradient(135deg, rgba(201,168,76,.15), rgba(201,168,76,.08));
+      border: 1px solid rgba(201,168,76,.5);
+      color: var(--gold2);
+      font-family: 'Noto Serif JP', serif;
+      font-size: .8rem;
+      font-weight: 400;
+      letter-spacing: .4em;
+      cursor: pointer;
+      border-radius: 2px;
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      transition: opacity .4s .82s, background .2s, border-color .2s, transform .15s;
+      position: relative; z-index: 1;
+    }
+    .scroll-overlay.visible .retry-btn { opacity: 1; }
+    .retry-btn:hover {
+      background: linear-gradient(135deg, rgba(201,168,76,.28), rgba(201,168,76,.18));
+      border-color: rgba(201,168,76,.8);
+      transform: translateY(-2px);
+    }
+    .retry-btn:active { transform: translateY(0); }
+
+    /* ── モバイル対応 ── */
+
+    /* オーバーレイはスクロール可能に */
+    .scroll-overlay {
+      align-items: flex-start;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: clamp(12px, 4vw, 24px);
+      padding-top: max(env(safe-area-inset-top), clamp(12px, 4vw, 24px));
+      padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    }
+    .scroll-overlay .scroll-paper {
+      margin: auto; /* 縦方向に余裕があれば中央、なければ上から */
+    }
+
+    /* タイトルをスマホで小さく */
+    @media (max-width: 480px) {
+      .title-main { font-size: 2.2rem; }
+      header { margin-bottom: 32px; padding-top: 20px; }
+
+      /* 箱を一回り小さく */
+      .roof-wrap { width: 130px; }
+      .roof      { border-left: 65px solid transparent; border-right: 65px solid transparent; border-bottom-width: 34px; }
+      .roof-bar  { width: 142px; height: 8px; }
+      .omikuji-box { width: 130px; padding: 12px 0 18px; }
+      .box-kanji { font-size: 1.25rem; }
+      .pedestal  { width: 158px; height: 12px; }
+
+      /* スクロール紙のパディングを縮小 */
+      .scroll-body { padding: 20px 18px 24px; }
+      .result-text { font-size: 3.6rem; }
+    }
+
+    /* ホバーはタッチ端末では無効にしてタップ感を出す */
+    @media (hover: none) {
+      .box-btn:hover { transform: none; }
+      .box-btn:active { transform: scale(.95); }
+    }
+
+    /* ── パーティクル ── */
+    .particle {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 300;
+      animation: pburst ease-out forwards;
+    }
+    @keyframes pburst {
+      0%   { transform: translate(0,0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--dx),var(--dy)) scale(0); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title-kana">お み く じ</div>
+    <div class="title-main">御神籤</div>
+    <div class="title-rule">
+      <span></span><i></i><span></span>
+    </div>
+  </header>
+
+  <div class="shrine-wrap">
+    <button class="box-btn" id="boxBtn" aria-label="おみくじを引く">
+      <div class="roof-wrap">
+        <div class="roof-tip"></div>
+        <div class="roof"></div>
+        <div class="roof-bar"></div>
+      </div>
+      <div class="omikuji-box">
+        <div class="box-slot"></div>
+        <div class="box-line"></div>
+        <div class="box-kanji">御神籤</div>
+        <div class="box-line"></div>
+      </div>
+    </button>
+    <div class="pedestal"></div>
+    <p class="hint" id="hint">箱をクリックしておみくじを引こう</p>
+  </div>
+
+  <!-- 結果オーバーレイ -->
+  <div class="scroll-overlay" id="overlay" role="dialog" aria-modal="true" aria-label="おみくじ結果">
+    <div class="overlay-bg" id="overlayBg"></div>
+    <div class="scroll-paper">
+      <div class="scroll-rod"></div>
+      <div class="scroll-body">
+        <div class="stamp" id="stamp">第<br>?<br>番</div>
+        <div class="scroll-number" id="scrollNum">第 ?? 番</div>
+        <div class="result-text" id="resultText"></div>
+        <div class="result-ruby" id="resultRuby"></div>
+        <div class="divider"><span></span><i></i><span></span></div>
+        <div class="result-msg" id="resultMsg"></div>
+        <div class="result-cats" id="resultCats"></div>
+      </div>
+      <div class="scroll-rod"></div>
+      <button class="retry-btn" id="retryBtn">もう一度引く</button>
+    </div>
+  </div>
+
+  <script>
+    /* ── データ ── */
+    const FORTUNES = [
+      {
+        result: '大吉', ruby: 'だいきち', cls: 'daikichi', weight: 40,
+        msg: '運気は今まさに頂点。\n思い切った行動が大きな実を結ぶ。\n迷いを捨て、前へ進もう。',
+        cats: { 恋愛: '申し分なし', 仕事: '大きな成果あり', 健康: '活力みなぎる', 金運: '思わぬ収入あり' }
+      },
+      {
+        result: '中吉', ruby: 'ちゅうきち', cls: 'chukichi', weight: 30,
+        msg: '着実に歩めば望みは叶う。\n焦らず、丁寧に積み重ねることが\n今の自分への最高の贈り物。',
+        cats: { 恋愛: '穏やかに進展', 仕事: '着実な前進', 健康: '概ね良好', 金運: '堅実な蓄えを' }
+      },
+      {
+        result: '小吉', ruby: 'しょうきち', cls: 'shokichi', weight: 15,
+        msg: '小さな幸せが積み重なる時。\n身近な人への感謝を忘れずに。\nささやかな縁を大切にしよう。',
+        cats: { 恋愛: '小さな喜びあり', 仕事: '地道な努力が大事', 健康: '無理は禁物', 金運: '節約が吉' }
+      },
+      {
+        result: '吉', ruby: 'きち', cls: 'kichi', weight: 10,
+        msg: '平穏な運気が続く。\n今あるものを守り、感謝の心を\n忘れなければ道は開ける。',
+        cats: { 恋愛: '現状維持が吉', 仕事: 'コツコツが大事', 健康: '規則正しい生活を', 金運: '無駄遣いに注意' }
+      },
+      {
+        result: '末吉', ruby: 'すえきち', cls: 'suekichi', weight: 3,
+        msg: 'すぐには見えなくても\n将来に向けての種を蒔く時期。\n焦らず待てば花は咲く。',
+        cats: { 恋愛: '焦りは禁物', 仕事: '準備期間と心得よ', 健康: '体のメンテを', 金運: '今は蓄え時' }
+      },
+      {
+        result: '凶', ruby: 'きょう', cls: 'kyo', weight: 1,
+        msg: '試練の時は自分を磨く好機。\n慎重に言動を選び、\n謙虚な心で周囲と向き合おう。',
+        cats: { 恋愛: '言葉を選ぶこと', 仕事: '慎重に行動を', 健康: '過信は禁物', 金運: '大きな出費は控えて' }
+      },
+      {
+        result: '大凶', ruby: 'だいきょう', cls: 'daikyo', weight: 1,
+        msg: '今は嵐の中。\nしかし嵐の後には必ず晴れ間が来る。\n神社のお守りを購入することをお勧めします。',
+        cats: { 恋愛: '今は時を待て', 仕事: '現状維持が最善', 健康: '無理は絶対にNG', 金運: '出費を最小限に' }
+      }
+    ];
+
+    function pickFortune() {
+      const total = FORTUNES.reduce((s, f) => s + f.weight, 0);
+      let r = Math.random() * total;
+      for (const f of FORTUNES) { r -= f.weight; if (r <= 0) return f; }
+      return FORTUNES.at(-1);
+    }
+
+    /* ── 桜の花びら ── */
+    (() => {
+      for (let i = 0; i < 16; i++) {
+        const p = document.createElement('div');
+        p.className = 'petal';
+        const s = 8 + Math.random() * 11;
+        const hue = 338 + Math.random() * 18;
+        p.style.cssText = `
+          left:${Math.random()*110-5}vw; width:${s}px; height:${s}px;
+          background:radial-gradient(ellipse at 40% 35%,hsl(${hue},100%,90%),hsl(${hue},75%,72%));
+          animation-duration:${7+Math.random()*9}s;
+          animation-delay:${Math.random()*14}s;
+          transform:rotate(${Math.random()*360}deg);
+          z-index:1;
+        `;
+        document.body.appendChild(p);
+      }
+    })();
+
+    /* ── パーティクルバースト ── */
+    function burst(cls) {
+      const palettes = {
+        daikichi: ['#f0cc78','#e05060','#ffeaa0','#d94878','#c9a84c'],
+        daikyo:   ['#707070','#909090','#505050'],
+        default:  ['#c9a84c','#f0cc78','#e05060','#d080a0','#8080c0'],
+      };
+      const colors = palettes[cls] ?? palettes.default;
+      const cx = innerWidth / 2, cy = innerHeight / 2;
+      for (let i = 0; i < 36; i++) {
+        const el = document.createElement('div');
+        el.className = 'particle';
+        const angle = Math.PI * 2 * i / 36 + Math.random() * .4;
+        const dist  = 100 + Math.random() * 160;
+        const size  = 5 + Math.random() * 7;
+        el.style.cssText = `
+          left:${cx}px; top:${cy}px;
+          width:${size}px; height:${size}px;
+          background:${colors[i % colors.length]};
+          --dx:${Math.cos(angle)*dist}px; --dy:${Math.sin(angle)*dist}px;
+          animation-duration:${.6+Math.random()*.5}s;
+          animation-delay:${Math.random()*.08}s;
+        `;
+        document.body.appendChild(el);
+        el.addEventListener('animationend', () => el.remove(), {once:true});
+      }
+    }
+
+    /* ── ロジック ── */
+    const boxBtn   = document.getElementById('boxBtn');
+    const overlay  = document.getElementById('overlay');
+    const overlayBg = document.getElementById('overlayBg');
+    const retryBtn = document.getElementById('retryBtn');
+    const hint     = document.getElementById('hint');
+    let busy = false;
+
+    boxBtn.addEventListener('click', () => {
+      if (busy) return;
+      busy = true;
+      boxBtn.classList.add('shaking');
+      boxBtn.addEventListener('animationend', () => {
+        boxBtn.classList.remove('shaking');
+        busy = false;
+        showResult();
+      }, {once: true});
+    });
+
+    retryBtn.addEventListener('click', close);
+    overlayBg.addEventListener('click', close);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+    function close() {
+      overlay.classList.remove('visible');
+      document.body.style.overflow = '';
+      hint.style.opacity = '1';
+    }
+
+    function showResult() {
+      const f   = pickFortune();
+      const num = String(Math.floor(Math.random() * 100) + 1).padStart(2, '0');
+
+      document.getElementById('stamp').innerHTML   = `第<br>${num}<br>番`;
+      document.getElementById('scrollNum').textContent = `第 ${num} 番`;
+
+      const rt = document.getElementById('resultText');
+      rt.textContent = f.result;
+      rt.className   = `result-text ${f.cls}`;
+
+      document.getElementById('resultRuby').textContent = f.ruby;
+      document.getElementById('resultMsg').textContent  = f.msg;
+      document.getElementById('resultCats').innerHTML = Object.entries(f.cats)
+        .map(([k,v]) => `<div class="cat-item"><span class="cat-label">${k}</span>${v}</div>`)
+        .join('');
+
+      hint.style.opacity = '0';
+      overlay.classList.add('visible');
+      document.body.style.overflow = 'hidden'; /* オーバーレイ表示中は背景固定 */
+      overlay.scrollTop = 0; /* 毎回先頭から */
+
+      setTimeout(() => burst(f.cls), 300);
+      if (f.cls === 'daikichi') {
+        setTimeout(() => burst(f.cls), 560);
+        setTimeout(() => burst(f.cls), 860);
+      }
+    }
+  </script>
+</body>
+</html>
